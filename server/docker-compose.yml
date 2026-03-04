@@ -1,0 +1,38 @@
+version: '3.8'
+
+services:
+  mysql:
+    image: mysql:8.0
+    container_name: project-distribute-mysql
+    restart: always
+    environment:
+      MYSQL_ROOT_PASSWORD: root_password
+      MYSQL_DATABASE: project_distribute
+    ports:
+      - "3306:3306"
+    volumes:
+      - mysql_data:/var/lib/mysql
+
+  server:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: project-distribute-server
+    restart: always
+    ports:
+      - "3000:3000"
+      - "3001:3001"
+    environment:
+      - NODE_ENV=production
+      - DB_HOST=mysql
+      - DB_PORT=3306
+      - DB_USERNAME=root
+      - DB_PASSWORD=root_password
+      - DB_DATABASE=project_distribute
+      - APP_PORT=3000
+      - WS_PORT=3001
+    depends_on:
+      - mysql
+
+volumes:
+  mysql_data:

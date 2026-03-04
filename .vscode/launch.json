@@ -1,0 +1,120 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    // ==================== NestJS 服务端 ====================
+    {
+      "name": "Server: Debug",
+      "type": "node",
+      "request": "launch",
+      "cwd": "${workspaceFolder}/server",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["run", "start:debug", "--"],
+      "autoAttachChildProcesses": true,
+      "sourceMaps": true,
+      "restart": true,
+      "env": {
+        "DB_TYPE": "sqlite",
+        "DB_DATABASE": "./data/database.db",
+        "APP_PORT": "3000",
+        "NODE_ENV": "development"
+      },
+      "console": "integratedTerminal",
+      "resolveSourceMapLocations": [
+        "${workspaceFolder}/server/**",
+        "!**/node_modules/**"
+      ]
+    },
+    {
+      "name": "Server: Run (no debug)",
+      "type": "node",
+      "request": "launch",
+      "cwd": "${workspaceFolder}/server",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["run", "start:dev"],
+      "env": {
+        "DB_TYPE": "sqlite",
+        "DB_DATABASE": "./data/database.db",
+        "APP_PORT": "3000",
+        "NODE_ENV": "development"
+      },
+      "console": "integratedTerminal"
+    },
+    {
+      "name": "Server: Jest Tests",
+      "type": "node",
+      "request": "launch",
+      "cwd": "${workspaceFolder}/server",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["run", "test", "--", "--runInBand"],
+      "console": "integratedTerminal"
+    },
+    {
+      "name": "Server: Jest Current File",
+      "type": "node",
+      "request": "launch",
+      "cwd": "${workspaceFolder}/server",
+      "program": "${workspaceFolder}/server/node_modules/.bin/jest",
+      "args": ["--runInBand", "${relativeFile}"],
+      "console": "integratedTerminal"
+    },
+
+    // ==================== Electron 客户端 ====================
+    {
+      "name": "Electron: Debug Main Process",
+      "type": "node",
+      "request": "launch",
+      "cwd": "${workspaceFolder}/electron/electron-app",
+      "runtimeExecutable": "/Users/zhou/.volta/bin/node",
+      "runtimeArgs": [
+        "./node_modules/.bin/electron-vite",
+        "--inspect",
+        "--sourcemap"
+      ],
+      "env": {
+        "NODE_ENV": "development",
+        "REMOTE_DEBUGGING_PORT": "9222"
+      },
+      "console": "integratedTerminal",
+      "internalConsoleOptions": "neverOpen",
+      "sourceMaps": true,
+      "resolveSourceMapLocations": [
+        "${workspaceFolder}/electron/electron-app/**",
+        "!**/node_modules/**"
+      ]
+    },
+    {
+      "name": "Electron: Debug Renderer Process",
+      "port": 9222,
+      "request": "attach",
+      "type": "chrome",
+      "webRoot": "${workspaceFolder}/electron/electron-app/src/renderer",
+      "timeout": 60000,
+      "presentation": {
+        "hidden": true
+      }
+    }
+  ],
+  "compounds": [
+    {
+      "name": "Electron: Debug All (Main + Renderer)",
+      "configurations": [
+        "Electron: Debug Main Process",
+        "Electron: Debug Renderer Process"
+      ],
+      "presentation": {
+        "order": 1
+      }
+    },
+    {
+      "name": "Full Stack: Server + Electron",
+      "configurations": [
+        "Server: Debug",
+        "Electron: Debug Main Process",
+        "Electron: Debug Renderer Process"
+      ],
+      "presentation": {
+        "order": 0
+      }
+    }
+  ]
+}
