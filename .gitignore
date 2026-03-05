@@ -18,3 +18,7 @@ beads_projectManager/.dolt/*
 beads_projectManager/.doltcfg/*
 .ocx/*
 .opencode/*
+
+# Dolt database files (added by bd init)
+.dolt/
+*.db
