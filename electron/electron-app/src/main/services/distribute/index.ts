@@ -199,6 +199,13 @@ export const disconnectServer = async () => {
   return { message: '已断开连接' }
 }
 
+/** 业务层就绪，通知服务端开始补推离线任务 */
+export const sendReady = async () => {
+  const ws = WsClient.getInstance()
+  ws.sendReady()
+  return { message: 'READY 信号已发送' }
+}
+
 /** 获取当前连接状态 */
 export const getConnectionStatus = async (): Promise<ConnectionStatusInfo> => {
   const ws = WsClient.getInstance()

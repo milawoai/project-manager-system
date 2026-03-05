@@ -2,7 +2,7 @@
  * @Author: zhou shijie.zhou@renren-inc.com
  * @Date: 2024-07-02 16:53:26
  * @LastEditors: zhou shijie.zhou@renren-inc.com
- * @LastEditTime: 2025-09-30 14:38:09
+ * @LastEditTime: 2026-03-05 19:34:30
  * @FilePath: /boss-desktop/src/main/server/index.ts
  * @Description: 这是默认设置,请设置`customMade`, 打开koroFileHeader查看配置 进行设置: https://github.com/OBKoro1/koro1FileHeader/wiki/%E9%85%8D%E7%BD%AE
  */
@@ -96,9 +96,6 @@ export const initializeServer = async (mainWindow, port: number = 5679) => {
     await new Promise((resolve) => setTimeout(resolve, 1000))
 
     mainWindow?.webContents && mainWindow?.webContents.send('server-initializing')
-    // 再次尝试清理端口
-    await killPortProcess(port)
-
     // 创建新服务器
     currentServer = await createServer(port)
 

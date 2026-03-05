@@ -4,6 +4,7 @@ import { TasksService } from './tasks.service';
 import { DistributeTaskDto } from './dto/distribute-task.dto';
 import { UpdateTaskStatusDto, TaskIdDto } from './dto/update-task-status.dto';
 import { CreateTaskDto } from './dto/create-task.dto';
+import { UpdateTaskDto } from './dto/update-task.dto';
 import { PageTasksDto } from './dto/page-tasks.dto';
 import { Task } from '../entities';
 
@@ -57,5 +58,22 @@ export class TasksController {
   updateStatus(@Body() updateTaskStatusDto: UpdateTaskStatusDto): Promise<Task> {
     const { taskId, ...rest } = updateTaskStatusDto;
     return this.tasksService.updateStatus(taskId, rest);
+  }
+
+  @Post('update')
+  @ApiOperation({ summary: '编辑任务基本信息（标题、描述、优先级、分发项）' })
+  @ApiResponse({ status: 200, description: '更新成功', type: Task })
+  @ApiResponse({ status: 404, description: '任务不存在' })
+  update(@Body() dto: UpdateTaskDto): Promise<Task> {
+    return this.tasksService.update(dto);
+  }
+
+  @Post('redispatch')
+  @ApiOperation({ summary: '重新下发任务到目标机器' })
+  @ApiResponse({ status: 200, description: '下发结果' })
+  @ApiResponse({ status: 404, description: '任务不存在' })
+  @ApiResponse({ status: 400, description: '未配置分发项' })
+  redispatch(@Body() dto: TaskIdDto) {
+    return this.tasksService.redispatch(dto.id);
   }
 }

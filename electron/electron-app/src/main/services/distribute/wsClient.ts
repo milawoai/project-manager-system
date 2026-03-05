@@ -103,6 +103,19 @@ export class WsClient extends EventEmitter {
     }
   }
 
+  /**
+   * 业务层就绪后调用，通知服务端开始补推离线任务。
+   * 必须在 REGISTER_ACK 成功、业务初始化完成后再调用。
+   */
+  sendReady(): void {
+    if (!this.socket?.connected) {
+      console.warn('[WsClient] sendReady: socket 未连接，忽略')
+      return
+    }
+    console.log('[WsClient] 发送 READY 信号')
+    this.socket.emit(WsMessageType.READY)
+  }
+
   /** 发送任务结果 */
   sendTaskResult(taskId: number, status: 'completed' | 'failed', result?: string, logs?: string): void {
     if (!this.socket?.connected) {
@@ -171,6 +184,9 @@ export class WsClient extends EventEmitter {
         this.machineId = payload.machineId
         this.setStatus(ConnStatus.CONNECTED)
         this.startHeartbeat()
+
+        // 延迟 1s 后发送 READY，等待业务层完成初始化后再触发离线任务补推
+        setTimeout(() => this.sendReady(), 1000)
       } else {
         console.error(`[WsClient] 注册被拒绝: ${payload.message}`)
         this.emit('error', { message: `注册被拒绝: ${payload.message}` })
@@ -179,10 +195,14 @@ export class WsClient extends EventEmitter {
       this.emit('register-ack', payload)
     })
 
-    // 收到任务
+    // 收到任务 — 立即发送 TASK_CAPTURED 回包确认，再向上层 emit
     this.socket.on(WsMessageType.TASK_ASSIGNED, (payload: WsTaskAssignedPayload) => {
       console.log(`[WsClient] 收到任务: ${payload.taskId}`)
       this.currentTaskId = payload.taskId
+
+      // 告知服务端已捕捉，服务端据此标记 isCaptured=1
+      this.socket!.emit(WsMessageType.TASK_CAPTURED, { taskId: payload.taskId })
+
       this.emit('task-received', payload)
     })
 

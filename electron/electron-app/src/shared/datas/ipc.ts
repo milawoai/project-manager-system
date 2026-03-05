@@ -110,6 +110,9 @@ export const defineHandlers = {
     disconnectServer: {
       desc: '断开服务端连接'
     },
+    sendReady: {
+      desc: '业务层就绪，通知服务端补推离线任务'
+    },
     getConnectionStatus: {
       desc: '获取当前连接状态'
     },

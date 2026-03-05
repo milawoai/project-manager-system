@@ -6,6 +6,7 @@ import { Task, TaskStatus, Machine, MachineStatus, Project } from '../entities';
 import { DistributeTaskDto } from './dto/distribute-task.dto';
 import { UpdateTaskStatusDto } from './dto/update-task-status.dto';
 import { CreateTaskDto } from './dto/create-task.dto';
+import { UpdateTaskDto } from './dto/update-task.dto';
 import { PageTasksDto } from './dto/page-tasks.dto';
 import { TasksGateway } from '../gateways/tasks.gateway';
 
@@ -270,5 +271,54 @@ export class TasksService {
     }
 
     return task;
+  }
+
+  // 编辑任务基本信息
+  async update(dto: UpdateTaskDto): Promise<Task> {
+    const task = await this.taskRepository.findOne({ where: { id: dto.id } });
+    if (!task) throw new NotFoundException(`任务 #${dto.id} 不存在`);
+
+    if (dto.title !== undefined) {
+      task.title = dto.title;
+      const desc = dto.description ?? task.description ?? '';
+      task.content = [dto.title, desc].filter(Boolean).join('\n');
+    }
+    if (dto.description !== undefined) {
+      task.description = dto.description;
+      task.content = [task.title, dto.description].filter(Boolean).join('\n');
+    }
+    if (dto.priority !== undefined) task.priority = dto.priority;
+    if (dto.list !== undefined) {
+      task.projectIds = Array.from(new Set(dto.list.map((i) => i.projectId)));
+      task.taskItems = dto.list;
+      task.assignedMachineId = dto.list[0]?.machineId ?? task.assignedMachineId;
+    }
+
+    return this.taskRepository.save(task);
+  }
+
+  // 重新下发已有任务到 taskItems 中指定的机器
+  async redispatch(id: number): Promise<{ dispatched: boolean; message: string }> {
+    const task = await this.taskRepository.findOne({ where: { id } });
+    if (!task) throw new NotFoundException(`任务 #${id} 不存在`);
+
+    if (!task.taskItems?.length) {
+      throw new BadRequestException('任务未配置分发项，请先编辑任务并指定机器');
+    }
+
+    // 重置为 PENDING，便于重新触发下发流程
+    task.status = TaskStatus.PENDING;
+    await this.taskRepository.save(task);
+
+    await this.dispatchTaskItems(task, task.taskItems);
+
+    // 重新读取最新状态判断是否下发成功
+    const updated = await this.taskRepository.findOne({ where: { id } });
+    const dispatched = updated?.status === TaskStatus.RUNNING;
+
+    return {
+      dispatched,
+      message: dispatched ? '任务已重新下发到目标机器' : '目标机器当前不在线，任务已重置为待处理',
+    };
   }
 }

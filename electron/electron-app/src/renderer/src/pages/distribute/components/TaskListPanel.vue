@@ -245,7 +245,7 @@ onUnmounted(() => {
       <div v-if="pendingTasks.length === 0" class="px-4 py-6 text-center text-sm text-surface-400">
         暂无待处理任务
       </div>
-      <div v-else class="divide-y divide-surface-100 dark:divide-surface-700">
+      <div v-else class="task-section-body divide-y divide-surface-100 dark:divide-surface-700">
         <div
           v-for="task in pendingTasks"
           :key="task.id"
@@ -289,7 +289,7 @@ onUnmounted(() => {
       <div v-if="runningTasks.length === 0" class="px-4 py-6 text-center text-sm text-surface-400">
         暂无处理中的任务
       </div>
-      <div v-else class="divide-y divide-surface-100 dark:divide-surface-700">
+      <div v-else class="task-section-body divide-y divide-surface-100 dark:divide-surface-700">
         <div
           v-for="task in runningTasks"
           :key="task.id"
@@ -337,7 +337,7 @@ onUnmounted(() => {
       <div v-if="doneTasks.length === 0" class="px-4 py-6 text-center text-sm text-surface-400">
         暂无已完成任务
       </div>
-      <div v-else class="divide-y divide-surface-100 dark:divide-surface-700">
+      <div v-else class="task-section-body divide-y divide-surface-100 dark:divide-surface-700">
         <div v-for="task in doneTasksVisible" :key="task.id" class="flex items-start gap-3 px-4 py-3">
           <div class="flex-1 min-w-0">
             <div class="flex items-center gap-2 mb-1">
@@ -413,3 +413,10 @@ onUnmounted(() => {
     />
   </div>
 </template>
+
+<style scoped>
+.task-section-body {
+  max-height: 320px;
+  overflow-y: auto;
+}
+</style>

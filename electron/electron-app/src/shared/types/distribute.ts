@@ -25,8 +25,10 @@ export enum DistTaskStatus {
 export enum WsMessageType {
   REGISTER = 'REGISTER',
   REGISTER_ACK = 'REGISTER_ACK',
+  READY = 'READY',                   // 客户端业务层就绪，触发离线任务补推
   HEARTBEAT = 'HEARTBEAT',
   TASK_ASSIGNED = 'TASK_ASSIGNED',
+  TASK_CAPTURED = 'TASK_CAPTURED',   // 客户端收到任务后回包确认
   TASK_RESULT = 'TASK_RESULT',
   MACHINE_STATUS = 'MACHINE_STATUS',
   ERROR = 'ERROR'

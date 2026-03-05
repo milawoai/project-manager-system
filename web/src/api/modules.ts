@@ -24,6 +24,14 @@ export interface TaskCreatePayload {
   list: TaskCreateItem[]
 }
 
+export interface TaskUpdatePayload {
+  id: number
+  title?: string
+  description?: string
+  priority?: number
+  list?: TaskCreateItem[]
+}
+
 export interface ProjectCreatePayload {
   name: string
   gitUrl: string
@@ -46,5 +54,11 @@ export const api = {
   },
   createTask(payload: TaskCreatePayload) {
     return http.post('/tasks/create', payload)
+  },
+  updateTask(payload: TaskUpdatePayload) {
+    return http.post('/tasks/update', payload)
+  },
+  redispatchTask(id: number) {
+    return http.post('/tasks/redispatch', { id })
   },
 }

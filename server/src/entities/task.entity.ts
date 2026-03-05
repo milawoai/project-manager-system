@@ -63,6 +63,9 @@ export class Task {
   @Column({ type: 'text', nullable: true })
   logs: string;
 
+  @Column({ name: 'is_captured', type: 'int', default: 0, comment: '客户端是否已捕捉 0=未捕捉 1=已捕捉' })
+  isCaptured: number;
+
   @Column({ name: 'is_delete', type: 'int', default: 0, comment: '逻辑删除 0 未删除 >0 已删除' })
   isDelete: number;
 
