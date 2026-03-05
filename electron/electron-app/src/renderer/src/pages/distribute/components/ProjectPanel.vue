@@ -543,13 +543,6 @@ onUnmounted(() => {
             >
               {{ truncatePath(data.localPath) }}
             </span>
-            <Button
-              icon="pi pi-pencil"
-              size="small" text rounded severity="secondary"
-              v-tooltip="'修改路径'"
-              :loading="actioningId === data.localId"
-              @click="handleChangePath(data)"
-            />
           </div>
           <span v-else class="text-surface-400 text-xs">未设置</span>
         </template>

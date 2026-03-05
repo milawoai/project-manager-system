@@ -25,7 +25,7 @@ const form = reactive({
   title: '',
   description: '',
   priority: 3,
-  list: [{ projectId: 0, machineId: 0 }],
+  list: [{ projectId: null as number | null, machineId: null as number | null }],
 })
 
 watch(
@@ -35,13 +35,13 @@ watch(
       form.title = ''
       form.description = ''
       form.priority = 3
-      form.list = [{ projectId: 0, machineId: 0 }]
+      form.list = [{ projectId: null, machineId: null }]
     }
   },
 )
 
 function addItem() {
-  form.list.push({ projectId: 0, machineId: 0 })
+  form.list.push({ projectId: null, machineId: null })
 }
 
 function removeItem(index: number) {
@@ -55,7 +55,7 @@ async function submit() {
     return
   }
 
-  if (form.list.some((item) => !item.projectId || item.projectId === 0)) {
+  if (form.list.some((item) => !item.projectId)) {
     ElMessage.error('请为每一行选择工程')
     return
   }
@@ -67,8 +67,8 @@ async function submit() {
       description: form.description,
       priority: form.priority,
       list: form.list.map((item) => ({
-        projectId: item.projectId,
-        machineId: item.machineId || undefined,  // 0 视为未选择
+        projectId: item.projectId as number,
+        machineId: item.machineId ?? undefined,  // null 视为未选择
       })),
     })
 

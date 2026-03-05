@@ -5,6 +5,13 @@ export interface PageQuery {
   pageSize: number
 }
 
+export interface TasksPageQuery extends PageQuery {
+  title?: string
+  status?: string
+  startDate?: string
+  endDate?: string
+}
+
 export interface TaskCreateItem {
   projectId: number
   machineId?: number
@@ -31,7 +38,7 @@ export const api = {
   projectsPageList(query: PageQuery) {
     return http.post('/projects/pageList', query)
   },
-  tasksPageList(query: PageQuery) {
+  tasksPageList(query: TasksPageQuery) {
     return http.post('/tasks/pageList', query)
   },
   createProject(payload: ProjectCreatePayload) {

@@ -16,4 +16,5 @@ server/data/database.db
 .spec-workflow/*
 beads_projectManager/.dolt/*
 beads_projectManager/.doltcfg/*
-
+.ocx/*
+.opencode/*

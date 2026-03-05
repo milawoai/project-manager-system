@@ -1,6 +1,7 @@
 import { ApiPropertyOptional } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
-import { IsInt, IsOptional, Max, Min } from 'class-validator';
+import { IsInt, IsOptional, IsString, Max, Min } from 'class-validator';
+import { TaskStatus } from '../../entities';
 
 export class PageTasksDto {
   @ApiPropertyOptional({ description: '页码，从 1 开始', default: 1 })
@@ -23,4 +24,24 @@ export class PageTasksDto {
   @IsInt()
   @IsOptional()
   machineId?: number;
+
+  @ApiPropertyOptional({ description: '任务名称模糊查询' })
+  @IsString()
+  @IsOptional()
+  title?: string;
+
+  @ApiPropertyOptional({ description: '任务状态过滤', enum: TaskStatus })
+  @IsString()
+  @IsOptional()
+  status?: TaskStatus;
+
+  @ApiPropertyOptional({ description: '创建时间起始（ISO 字符串）' })
+  @IsString()
+  @IsOptional()
+  startDate?: string;
+
+  @ApiPropertyOptional({ description: '创建时间截止（ISO 字符串）' })
+  @IsString()
+  @IsOptional()
+  endDate?: string;
 }

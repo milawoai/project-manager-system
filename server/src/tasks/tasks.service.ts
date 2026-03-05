@@ -61,7 +61,45 @@ export class TasksService {
       assignedMachineId,
     });
 
-    return this.taskRepository.save(task);
+    const savedTask = await this.taskRepository.save(task);
+
+    // 创建后立即通过 WebSocket 下发到各 taskItem 指定的机器
+    await this.dispatchTaskItems(savedTask, createTaskDto.list);
+
+    return savedTask;
+  }
+
+  /**
+   * 遍历 taskItems，对每个指定了 machineId 的条目通过 WebSocket 下发任务。
+   * 下发成功后将任务状态更新为 DISTRIBUTED；若所有条目均未指定机器则状态保持 PENDING。
+   */
+  private async dispatchTaskItems(
+    task: Task,
+    items: Array<{ projectId: number; machineId?: number }>,
+  ): Promise<void> {
+    let dispatched = false;
+
+    for (const item of items) {
+      if (!item.machineId) continue;
+
+      const project = await this.projectRepository.findOne({ where: { id: item.projectId } });
+
+      const sent = await this.tasksGateway.sendTaskToMachine(item.machineId, {
+        taskId: task.id,
+        content: task.content,
+        projectId: item.projectId,
+        projectName: project?.name ?? null,
+        gitUrl: project?.gitUrl ?? null,
+      });
+
+      if (sent) dispatched = true;
+    }
+
+    // sendTaskToMachine 内部已将状态置为 RUNNING（机器在线时）；
+    // 若机器不在线（sent=false），则状态保持 PENDING，等待机器上线后手动下发。
+    if (!dispatched && items.some((i) => i.machineId)) {
+      console.warn(`[TasksService] 任务 #${task.id} 指定了机器但机器均不在线，状态保持 PENDING`);
+    }
   }
 
   // 发放任务
@@ -184,15 +222,33 @@ export class TasksService {
     const page = dto.page ?? 1;
     const pageSize = dto.pageSize ?? 10;
 
-    const where = dto.machineId ? { assignedMachineId: Number(dto.machineId) } : {};
+    const qb = this.taskRepository
+      .createQueryBuilder('task')
+      .leftJoinAndSelect('task.assignedMachine', 'assignedMachine')
+      .orderBy('task.createdAt', 'DESC')
+      .skip((page - 1) * pageSize)
+      .take(pageSize);
 
-    const [list, total] = await this.taskRepository.findAndCount({
-      where,
-      order: { createdAt: 'DESC' },
-      relations: ['assignedMachine'],
-      skip: (page - 1) * pageSize,
-      take: pageSize,
-    });
+    if (dto.machineId) {
+      qb.andWhere('task.assignedMachineId = :machineId', { machineId: dto.machineId });
+    }
+    if (dto.title?.trim()) {
+      qb.andWhere('task.title LIKE :title', { title: `%${dto.title.trim()}%` });
+    }
+    if (dto.status) {
+      qb.andWhere('task.status = :status', { status: dto.status });
+    }
+    if (dto.startDate) {
+      qb.andWhere('task.createdAt >= :startDate', { startDate: new Date(dto.startDate) });
+    }
+    if (dto.endDate) {
+      // endDate 精确到天，取当天 23:59:59
+      const end = new Date(dto.endDate);
+      end.setHours(23, 59, 59, 999);
+      qb.andWhere('task.createdAt <= :endDate', { endDate: end });
+    }
+
+    const [list, total] = await qb.getManyAndCount();
 
     return {
       list,
