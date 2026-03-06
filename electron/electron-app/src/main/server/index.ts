@@ -61,13 +61,20 @@ export const checkIsServerSurvies = async (port: number = 5679) => {
       isWorking: false
     }
   }
-  const response = await fetch(`http://localhost:${port}/heart-beat`, {
-    method: 'POST'
-  })
-  const data = await response.json()
-  return {
-    isAlive: data.success,
-    isWorking: false
+  try {
+    const response = await fetch(`http://localhost:${port}/heart-beat`, {
+      method: 'POST'
+    })
+    const data = await response.json()
+    return {
+      isAlive: data.success,
+      isWorking: false
+    }
+  } catch {
+    return {
+      isAlive: false,
+      isWorking: false
+    }
   }
 }
 

@@ -32,19 +32,19 @@ const checkLocalServerStatus = async () => {
 
 const toggleLocalServer = async () => {
   localServerLoading.value = true
+  const targetState = localServerEnabled.value
   try {
-    if (localServerEnabled.value) {
+    if (targetState) {
       // 开启服务器
       await ipc.server.startServer(localServerPort)
     } else {
       // 关闭服务器
       await ipc.server.stopServer()
     }
-    // 延迟检查以确保状态已更新
-    setTimeout(checkLocalServerStatus, 500)
+    // 操作成功，状态以 v-model 当前值为准，无需重新心跳检查
   } catch (error) {
     console.error('操作本地服务器失败', error)
-    localServerEnabled.value = !localServerEnabled.value // 发生错误时回滚状态
+    localServerEnabled.value = !targetState // 发生错误时回滚状态
   } finally {
     localServerLoading.value = false
   }
