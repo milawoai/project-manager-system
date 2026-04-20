@@ -9,7 +9,7 @@ cd server
 npm install
 npm run start:dev
 
-http://0.0.0.0:3000
+http://0.0.0.0:13020
 ```
 
 ### Electron 客户端

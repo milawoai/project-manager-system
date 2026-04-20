@@ -18,7 +18,7 @@ COPY . .
 RUN pnpm run build
 
 # 暴露端口
-EXPOSE 3000 3001
+EXPOSE 13020 3001
 
 # 启动
 CMD ["node", "dist/main"]

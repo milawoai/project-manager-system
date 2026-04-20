@@ -39,7 +39,7 @@ export const getConfig = (): AppConfig => {
   }
 
   return {
-    port: parseInt(process.env.APP_PORT || '3000', 10),
+    port: parseInt(process.env.APP_PORT || '13020', 10),
     host: process.env.APP_HOST || '0.0.0.0',
     wsPort: parseInt(process.env.WS_PORT || '3001', 10),
     database: databaseConfig,

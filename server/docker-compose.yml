@@ -20,7 +20,7 @@ services:
     container_name: project-distribute-server
     restart: always
     ports:
-      - "3000:3000"
+      - "13020:13020"
       - "3001:3001"
     environment:
       - NODE_ENV=production
@@ -29,7 +29,7 @@ services:
       - DB_USERNAME=root
       - DB_PASSWORD=root_password
       - DB_DATABASE=project_distribute
-      - APP_PORT=3000
+      - APP_PORT=13020
       - WS_PORT=3001
     depends_on:
       - mysql
