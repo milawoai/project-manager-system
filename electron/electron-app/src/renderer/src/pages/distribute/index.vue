@@ -20,6 +20,8 @@ const connectionStatus = ref<ConnectionStatusInfo>({
 const localServerEnabled = ref(false)
 const localServerLoading = ref(false)
 const localServerPort = 10010
+const autoRunEnabled = ref(false)
+const autoRunLoading = ref(false)
 
 const checkLocalServerStatus = async () => {
   try {
@@ -47,6 +49,32 @@ const toggleLocalServer = async () => {
     localServerEnabled.value = !targetState // 发生错误时回滚状态
   } finally {
     localServerLoading.value = false
+  }
+}
+
+const loadAutoRunEnabled = async () => {
+  try {
+    const res = await ipc.distribute.getAutoRunEnabled()
+    if (res.success) {
+      autoRunEnabled.value = res.data === true
+    }
+  } catch (error) {
+    console.error('获取自动执行开关失败', error)
+  }
+}
+
+const toggleAutoRun = async () => {
+  autoRunLoading.value = true
+  const targetState = autoRunEnabled.value
+  try {
+    const res = await ipc.distribute.setAutoRunEnabled(targetState)
+    if (!res.success) throw new Error(res.msg || '设置自动执行开关失败')
+    autoRunEnabled.value = res.data?.enabled === true
+  } catch (error) {
+    console.error('设置自动执行开关失败', error)
+    autoRunEnabled.value = !targetState
+  } finally {
+    autoRunLoading.value = false
   }
 }
 
@@ -381,6 +409,7 @@ onMounted(() => {
   window.electron.ipcRenderer.on('distribute:connection-change', onConnectionChange)
   window.electron.ipcRenderer.on('distribute:task-received', onTaskReceived)
   checkLocalServerStatus()
+  loadAutoRunEnabled()
   checkSavedApiKey()
   autoConnect() // 有历史配置时静默自动连接
 })
@@ -448,6 +477,21 @@ const statusLabel = () => {
             text
             tooltip="测试本地服务"
             @click.stop="testLocalServer"
+          />
+        </div>
+
+        <!-- 自动执行任务开关 -->
+        <div
+          class="flex items-center gap-2 px-3 py-1.5 rounded-md border border-surface-200 dark:border-surface-700"
+          v-tooltip="'开启后，收到 Web 下发任务会自动调用 Claude Code 执行并上报结果'"
+        >
+          <i class="pi pi-bolt text-orange-500" />
+          <span class="text-sm font-medium">自动执行</span>
+          <InputSwitch
+            v-model="autoRunEnabled"
+            :disabled="autoRunLoading"
+            :loading="autoRunLoading"
+            @change="toggleAutoRun"
           />
         </div>
 

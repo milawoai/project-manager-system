@@ -28,6 +28,7 @@ declare module 'vue' {
     InputGroupAddon: typeof import('primevue/inputgroupaddon')['default']
     InputIcon: typeof import('primevue/inputicon')['default']
     InputNumber: typeof import('primevue/inputnumber')['default']
+    InputSwitch: typeof import('primevue/inputswitch')['default']
     InputText: typeof import('primevue/inputtext')['default']
     LanguageSwitcher: typeof import('./src/components/LanguageSwitcher.vue')['default']
     ListInput: typeof import('./src/components/form/ListInput.vue')['default']

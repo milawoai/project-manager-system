@@ -6,6 +6,7 @@ import {
 } from './autoTaskRunnerCore'
 
 export interface AutoTaskRunnerDeps {
+  isEnabled: () => boolean
   getTask: (localTaskId: number) => AutoTaskRunnerTask | null
   getPendingTasks: () => AutoTaskRunnerTask[]
   startLocalTask: (localTaskId: number) => Promise<{ promptPath: string; promptContent: string }>
@@ -20,6 +21,7 @@ export class AutoTaskRunner {
   private readonly queuedTaskIds = new Set<number>()
   private readonly queue: number[] = []
   private processing = false
+  private idlePromise: Promise<void> = Promise.resolve()
   private readonly core: AutoTaskRunnerCore
 
   constructor(private readonly deps: AutoTaskRunnerDeps) {
@@ -31,16 +33,22 @@ export class AutoTaskRunner {
   }
 
   enqueue(localTaskId: number): void {
+    if (!this.deps.isEnabled()) return
     if (this.queuedTaskIds.has(localTaskId)) return
     this.queuedTaskIds.add(localTaskId)
     this.queue.push(localTaskId)
-    void this.drain()
+    this.idlePromise = this.drain()
   }
 
   enqueuePending(): void {
+    if (!this.deps.isEnabled()) return
     for (const task of this.deps.getPendingTasks()) {
       this.enqueue(task.id)
     }
+  }
+
+  waitForIdle(): Promise<void> {
+    return this.idlePromise
   }
 
   private async drain(): Promise<void> {

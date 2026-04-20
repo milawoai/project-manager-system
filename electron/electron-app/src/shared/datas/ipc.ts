@@ -116,6 +116,12 @@ export const defineHandlers = {
     getConnectionStatus: {
       desc: '获取当前连接状态'
     },
+    getAutoRunEnabled: {
+      desc: '获取自动执行任务开关状态'
+    },
+    setAutoRunEnabled: {
+      desc: '设置自动执行任务开关状态'
+    },
     getDistProjects: {
       desc: '获取服务端工程列表'
     },

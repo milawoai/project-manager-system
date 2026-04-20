@@ -49,6 +49,7 @@ const STORE_KEY = {
   API_KEY: 'distribute:apiKey',
   MACHINE_ID: 'distribute:machineId',
   AUTO_CONNECT: 'distribute:autoConnect',
+  AUTO_RUN_TASKS: 'distribute:autoRunTasks',
   LOCAL_PROJECTS: 'distribute:localProjects'
 }
 
@@ -74,6 +75,7 @@ function getApi(): AxiosInstance {
 let wsEventsInitialized = false
 
 const autoTaskRunner = new AutoTaskRunner({
+  isEnabled: () => getAutoRunEnabledValue(),
   getTask: (localTaskId) => {
     const task = dbGetLocalTaskById(localTaskId)
     return task ? rowToAutoTask(task) : null
@@ -83,6 +85,10 @@ const autoTaskRunner = new AutoTaskRunner({
   executeAgent: (params) => executeTaskAndWait({ ...params, verbose: true }),
   finishLocalTask: (localTaskId, params) => finishLocalTask(localTaskId, params)
 })
+
+function getAutoRunEnabledValue(): boolean {
+  return DefaultStoreHandler.get<boolean>(STORE_KEY.AUTO_RUN_TASKS, false) === true
+}
 
 function rowToAutoTask(row: LocalTaskRow) {
   const project = row.projectRemoteId
@@ -234,6 +240,20 @@ export const sendReady = async () => {
   const ws = WsClient.getInstance()
   ws.sendReady()
   return { message: 'READY 信号已发送' }
+}
+
+/** 获取自动执行任务开关状态 */
+export const getAutoRunEnabled = async (): Promise<boolean> => {
+  return getAutoRunEnabledValue()
+}
+
+/** 设置自动执行任务开关；打开时立即扫描待处理本地任务 */
+export const setAutoRunEnabled = async (enabled: boolean): Promise<{ enabled: boolean }> => {
+  DefaultStoreHandler.set(STORE_KEY.AUTO_RUN_TASKS, enabled)
+  if (enabled) {
+    autoTaskRunner.enqueuePending()
+  }
+  return { enabled }
 }
 
 /** 获取当前连接状态 */
