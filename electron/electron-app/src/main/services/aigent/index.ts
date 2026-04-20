@@ -9,6 +9,8 @@ import { CodexAgent } from './impl/CodexAgent'
 import { CursorAgent } from './impl/CursorAgent'
 import { BaseAgent } from './impl/BaseAgent'
 import type {
+  AgentExecutionResult,
+  AgentType,
   ExecuteTaskParams,
   StopTaskParams,
   GetTaskStatusParams,
@@ -58,29 +60,27 @@ export function clearOpencodeSessionId(agentType: string, projectPath: string): 
 
 // ==================== IPC 处理函数 ====================
 
+function createAgent(agentType: AgentType, taskId: string, verbose: boolean): BaseAgent {
+  switch (agentType) {
+    case 'claude-code':
+      return new ClaudeCodeAgent(taskId, verbose)
+    case 'opencode':
+      return new OpencodeAgent(taskId, verbose)
+    case 'codex':
+      return new CodexAgent(taskId, verbose)
+    case 'cursor':
+      return new CursorAgent(taskId, verbose)
+    default:
+      throw new Error(`不支持的 Agent 类型: ${agentType}`)
+  }
+}
+
 /** 执行 Agent 任务，返回 taskId 供后续中断/查询使用 */
 export const executeTask = async (params: ExecuteTaskParams): Promise<{ taskId: string; sessionId?: string }> => {
   const { projectPath, taskContent, agentType, verbose = false, sessionId } = params
 
   const taskId = randomUUID()
-
-  let agent: BaseAgent
-  switch (agentType) {
-    case 'claude-code':
-      agent = new ClaudeCodeAgent(taskId, verbose)
-      break
-    case 'opencode':
-      agent = new OpencodeAgent(taskId, verbose)
-      break
-    case 'codex':
-      agent = new CodexAgent(taskId, verbose)
-      break
-    case 'cursor':
-      agent = new CursorAgent(taskId, verbose)
-      break
-    default:
-      throw new Error(`不支持的 Agent 类型: ${agentType}`)
-  }
+  const agent = createAgent(agentType, taskId, verbose)
 
   taskMap.set(taskId, agent)
 
@@ -92,6 +92,29 @@ export const executeTask = async (params: ExecuteTaskParams): Promise<{ taskId: 
   })
 
   return { taskId, sessionId }
+}
+
+/** 执行 Agent 任务并等待完成，供主进程自动化编排使用 */
+export const executeTaskAndWait = async (
+  params: ExecuteTaskParams
+): Promise<AgentExecutionResult> => {
+  const { projectPath, taskContent, agentType, verbose = false, sessionId } = params
+  const taskId = randomUUID()
+  const agent = createAgent(agentType, taskId, verbose)
+
+  taskMap.set(taskId, agent)
+  try {
+    await agent.execute(taskContent, projectPath, sessionId)
+    return {
+      taskId,
+      status: agent.getStatus(),
+      output: agent.getOutput(),
+      error: agent.getError(),
+      sessionId: agent.getSessionId() ?? undefined
+    }
+  } finally {
+    setTimeout(() => taskMap.delete(taskId), 60_000)
+  }
 }
 
 /** 中断正在执行的任务 */

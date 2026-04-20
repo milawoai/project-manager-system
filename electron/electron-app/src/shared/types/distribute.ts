@@ -131,7 +131,7 @@ export interface WsTaskAssignedPayload {
 /** 任务结果载荷 */
 export interface WsTaskResultPayload {
   taskId: number
-  status: 'completed' | 'failed'
+  status: 'running' | 'completed' | 'failed'
   result?: string
   logs?: string
 }

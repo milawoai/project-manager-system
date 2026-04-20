@@ -35,10 +35,13 @@ import {
   dbInsertLocalTask,
   dbGetAllLocalTasks,
   dbGetLocalTaskById,
+  dbGetLocalTasksByStatus,
   dbUpdateLocalTask,
   type LocalProjectRow,
   type LocalTaskRow
 } from '@main/services/db/index'
+import { executeTaskAndWait } from '@main/services/aigent/index'
+import { AutoTaskRunner } from './autoTaskRunner'
 
 // ==================== Store Keys ====================
 const STORE_KEY = {
@@ -70,6 +73,31 @@ function getApi(): AxiosInstance {
 
 let wsEventsInitialized = false
 
+const autoTaskRunner = new AutoTaskRunner({
+  getTask: (localTaskId) => {
+    const task = dbGetLocalTaskById(localTaskId)
+    return task ? rowToAutoTask(task) : null
+  },
+  getPendingTasks: () => dbGetLocalTasksByStatus(['pending', 'distributed']).map(rowToAutoTask),
+  startLocalTask: (localTaskId) => startLocalTask(localTaskId),
+  executeAgent: (params) => executeTaskAndWait({ ...params, verbose: true }),
+  finishLocalTask: (localTaskId, params) => finishLocalTask(localTaskId, params)
+})
+
+function rowToAutoTask(row: LocalTaskRow) {
+  const project = row.projectRemoteId
+    ? dbGetAllLocalProjects().find((p) => p.remoteId === row.projectRemoteId)
+    : undefined
+
+  return {
+    id: row.id,
+    remoteTaskId: row.remoteTaskId,
+    projectLocalPath: project?.localPath,
+    content: row.content,
+    status: row.status
+  }
+}
+
 function ensureWsEvents(): void {
   if (wsEventsInitialized) return
   wsEventsInitialized = true
@@ -80,13 +108,14 @@ function ensureWsEvents(): void {
   ws.on('task-received', (payload: WsTaskAssignedPayload) => {
     // 写入本地 DB（幂等，重复下发不会重复插入）
     try {
-      dbInsertLocalTask({
+      const localTask = dbInsertLocalTask({
         remoteTaskId: payload.taskId,
         projectRemoteId: payload.projectId ?? undefined,
         content: payload.content,
         status: 'pending',
         remoteCreatedAt: new Date().toISOString()
       })
+      autoTaskRunner.enqueue(localTask.id)
     } catch (e) {
       console.error('[distribute] 写入 local_tasks 失败:', e)
     }
@@ -188,6 +217,7 @@ export const connectServer = async (params: ConnectServerParams) => {
 
   const ws = WsClient.getInstance()
   ws.connect(serverUrl, apiKey)
+  autoTaskRunner.enqueuePending()
 
   return { message: '正在连接服务端...' }
 }
@@ -562,7 +592,7 @@ export const startLocalTask = async (
   // WS 上报 running 状态到远端
   const ws = WsClient.getInstance()
   if (ws.isConnected) {
-    ws.sendTaskResult(task.remoteTaskId, 'running' as any)
+    ws.sendTaskResult(task.remoteTaskId, 'running')
   }
 
   return { promptPath, promptContent }

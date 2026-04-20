@@ -94,6 +94,15 @@ export interface TaskStatusResult {
   status: AgentStatus
 }
 
+/** Agent 同步执行结果 */
+export interface AgentExecutionResult {
+  taskId: string
+  status: AgentStatus
+  output: string
+  error?: string
+  sessionId?: string
+}
+
 /** aigent:output 推送事件的 payload */
 export interface AgentOutputPayload {
   taskId: string

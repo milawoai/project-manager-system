@@ -117,7 +117,12 @@ export class WsClient extends EventEmitter {
   }
 
   /** 发送任务结果 */
-  sendTaskResult(taskId: number, status: 'completed' | 'failed', result?: string, logs?: string): void {
+  sendTaskResult(
+    taskId: number,
+    status: 'running' | 'completed' | 'failed',
+    result?: string,
+    logs?: string
+  ): void {
     if (!this.socket?.connected) {
       throw new Error('WebSocket 未连接')
     }
@@ -129,8 +134,8 @@ export class WsClient extends EventEmitter {
       logs
     })
 
-    // 任务完成后清除当前任务
-    if (this.currentTaskId === taskId) {
+    // 任务结束后清除当前任务
+    if (status !== 'running' && this.currentTaskId === taskId) {
       this.currentTaskId = null
     }
   }

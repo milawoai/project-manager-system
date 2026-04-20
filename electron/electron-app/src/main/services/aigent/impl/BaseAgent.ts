@@ -21,6 +21,8 @@ export abstract class BaseAgent {
   protected verbose: boolean
   /** 会话 ID（会话模式使用，由子类管理） */
   protected sessionId: string | null = null
+  private outputBuffer: string[] = []
+  private errorBuffer: string[] = []
 
   constructor(taskId: string, verbose = false) {
     this.taskId = taskId
@@ -33,6 +35,14 @@ export abstract class BaseAgent {
 
   getSessionId(): string | null {
     return this.sessionId
+  }
+
+  getOutput(): string {
+    return this.outputBuffer.join('')
+  }
+
+  getError(): string | undefined {
+    return this.errorBuffer.length > 0 ? this.errorBuffer.join('\n') : undefined
   }
 
   /**
@@ -80,6 +90,12 @@ export abstract class BaseAgent {
   // ==================== 推送事件到渲染进程 ====================
 
   protected pushOutput(content: string, stream: 'stdout' | 'stderr' = 'stdout'): void {
+    if (stream === 'stderr') {
+      this.errorBuffer.push(content)
+    } else {
+      this.outputBuffer.push(content)
+    }
+
     const payload: AgentOutputPayload = {
       taskId: this.taskId,
       content,
@@ -101,6 +117,7 @@ export abstract class BaseAgent {
 
   protected pushError(message: string): void {
     this.status = 'failed'
+    this.errorBuffer.push(message)
     const payload: AgentErrorPayload = {
       taskId: this.taskId,
       message,
