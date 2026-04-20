@@ -24,7 +24,12 @@ export default defineConfig({
     },
     plugins: [
       externalizeDepsPlugin({
-        exclude: ['open', 'adm-zip']
+        // open/adm-zip: 原有排除项
+        // 纯 ESM 包，需由 vite 打包转换：
+        // - @opencode-ai/sdk: Opencode Agent SDK
+        // - @anthropic-ai/claude-agent-sdk: Claude Code SDK
+        // - @openai/codex-sdk: Codex SDK
+        exclude: ['open', 'adm-zip', '@opencode-ai/sdk', '@anthropic-ai/claude-agent-sdk', '@openai/codex-sdk']
       })
     ],
     build: {
@@ -39,6 +44,10 @@ export default defineConfig({
         transformMixedEsModules: true,
         defaultIsModuleExports: true,
         include: [/node_modules/]
+      },
+      // 确保 ESM-only 的 SDK 包被正确处理
+      optimizeDeps: {
+        include: ['@opencode-ai/sdk', '@anthropic-ai/claude-agent-sdk', '@openai/codex-sdk']
       }
     }
   },

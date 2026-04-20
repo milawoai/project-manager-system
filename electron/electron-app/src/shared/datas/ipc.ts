@@ -206,6 +206,18 @@ export const defineHandlers = {
     },
     getTaskStatus: {
       desc: '获取任务状态'
+    },
+    createSession: {
+      desc: '创建 Agent 会话'
+    },
+    closeSession: {
+      desc: '关闭 Agent 会话'
+    },
+    appendSessionMessage: {
+      desc: '追加消息到会话'
+    },
+    getSessionHistory: {
+      desc: '获取会话历史'
     }
   }
 }

@@ -8,6 +8,16 @@ import type { OptionTag } from '@shared/types/project'
 import type { AgentType, AgentOutputPayload, AgentDonePayload, AgentErrorPayload } from '@shared/types/aigent'
 import TagInput from '@renderer/components/TagInput.vue'
 
+// ==================== 对话消息类型 ====================
+
+interface ChatMessage {
+  id: string
+  role: 'user' | 'assistant'
+  content: string
+  timestamp: number
+  streaming?: boolean  // 是否正在流式输出
+}
+
 defineProps<{ connected: boolean }>()
 
 const ipc = inject<IpcProxy>('ipc')!
@@ -386,24 +396,97 @@ onMounted(loadAll)
 
 const AGENT_OPTIONS: { label: string; value: AgentType }[] = [
   { label: 'Claude Code', value: 'claude-code' },
+  { label: 'Opencode', value: 'opencode' },
+  { label: 'Codex', value: 'codex' },
+  { label: 'Cursor', value: 'cursor' },
 ]
 
 const agentDialogVisible = ref(false)
 const agentProject = ref<MergedProject | null>(null)
 const agentType = ref<AgentType>('claude-code')
 const agentTask = ref('')
+const agentVerbose = ref(false)
 const agentRunning = ref(false)
 const agentTaskId = ref<string | null>(null)
 const agentLogs = ref<string>('')
 const agentLogEl = ref<HTMLElement | null>(null)
 
+// ==================== 对话模式状态 ====================
+
+/** 是否启用对话模式 */
+const agentChatMode = ref(false)
+/** 对话消息列表 */
+const chatMessages = ref<ChatMessage[]>([])
+const chatInput = ref('')
+const chatMessagesEl = ref<HTMLElement | null>(null)
+/** 当前会话 ID（会话模式使用） */
+const agentSessionId = ref<string | null>(null)
+
+let messageIdCounter = 0
+const genMessageId = () => `msg_${++messageIdCounter}_${Date.now()}`
+
+/** 滚动到底部 */
+const scrollChatToBottom = () => {
+  nextTick(() => {
+    if (chatMessagesEl.value) {
+      chatMessagesEl.value.scrollTop = chatMessagesEl.value.scrollHeight
+    }
+  })
+}
+
+/** 追加用户消息 */
+const appendUserMessage = (content: string) => {
+  chatMessages.value.push({
+    id: genMessageId(),
+    role: 'user',
+    content,
+    timestamp: Date.now()
+  })
+  scrollChatToBottom()
+}
+
+/** 追加 AI 消息（流式）并返回引用 */
+const appendAIMessage = (content: string, streaming = false): ChatMessage => {
+  const msg: ChatMessage = {
+    id: genMessageId(),
+    role: 'assistant',
+    content,
+    timestamp: Date.now(),
+    streaming
+  }
+  chatMessages.value.push(msg)
+  scrollChatToBottom()
+  return msg
+}
+
+/** 更新最后一条 AI 消息的内容（用于流式输出） */
+const updateLastAIMessage = (content: string) => {
+  const messages = chatMessages.value
+  if (messages.length > 0 && messages[messages.length - 1].role === 'assistant') {
+    messages[messages.length - 1].content = content
+    scrollChatToBottom()
+  }
+}
+
+/** 清空对话 */
+const clearChat = () => {
+  chatMessages.value = []
+  agentSessionId.value = null
+}
+
 const openAgentDialog = (project: MergedProject) => {
   agentProject.value = project
   agentType.value = 'claude-code'
   agentTask.value = ''
+  agentVerbose.value = false
   agentLogs.value = ''
   agentRunning.value = false
   agentTaskId.value = null
+  // 对话模式初始化
+  agentChatMode.value = false
+  chatMessages.value = []
+  chatInput.value = ''
+  agentSessionId.value = null
   agentDialogVisible.value = true
 }
 
@@ -415,7 +498,8 @@ const handleExecuteTask = async () => {
   const res = await ipc.aigent.executeTask({
     projectPath: agentProject.value.localPath,
     taskContent: agentTask.value.trim(),
-    agentType: agentType.value
+    agentType: agentType.value,
+    verbose: agentVerbose.value
   })
 
   if (res.success && res.data?.taskId) {
@@ -423,6 +507,43 @@ const handleExecuteTask = async () => {
   } else {
     agentRunning.value = false
     agentLogs.value = `[错误] ${res.msg || '启动任务失败'}`
+  }
+}
+
+/**
+ * 对话模式：发送消息
+ */
+const handleChatSend = async () => {
+  if (!agentProject.value?.localPath || !chatInput.value.trim() || agentRunning.value) return
+
+  const userMessage = chatInput.value.trim()
+  chatInput.value = ''
+
+  // 添加用户消息
+  appendUserMessage(userMessage)
+
+  // 开始执行（传递 sessionId 以支持会话模式）
+  agentRunning.value = true
+
+  const res = await ipc.aigent.executeTask({
+    projectPath: agentProject.value.localPath,
+    taskContent: userMessage,
+    agentType: agentType.value,
+    verbose: agentVerbose.value,
+    sessionId: agentSessionId.value ?? undefined
+  })
+
+  if (res.success && res.data?.taskId) {
+    agentTaskId.value = res.data.taskId
+    // 保存 sessionId（首次会创建，后续复用）
+    if (res.data.sessionId) {
+      agentSessionId.value = res.data.sessionId
+    }
+    // 创建空的 AI 消息占位
+    appendAIMessage('', true)
+  } else {
+    agentRunning.value = false
+    appendAIMessage(`[错误] ${res.msg || '启动任务失败'}`, false)
   }
 }
 
@@ -442,22 +563,57 @@ const scrollLogsToBottom = () => {
 // 监听主进程推送的流式输出事件
 const onAgentOutput = (_: unknown, payload: AgentOutputPayload) => {
   if (payload.taskId !== agentTaskId.value) return
-  agentLogs.value += payload.content
-  scrollLogsToBottom()
+
+  // 如果是会话模式且首次收到带有 sessionId 的事件，保存它
+  if (agentChatMode.value && payload.sessionId && !agentSessionId.value) {
+    agentSessionId.value = payload.sessionId
+  }
+
+  if (agentChatMode.value) {
+    // 对话模式：追加到最后的 AI 消息
+    updateLastAIMessage((chatMessages.value[chatMessages.value.length - 1]?.content ?? '') + payload.content)
+  } else {
+    // 单次任务模式：追加到日志
+    agentLogs.value += payload.content
+    scrollLogsToBottom()
+  }
 }
 
 const onAgentDone = (_: unknown, payload: AgentDonePayload) => {
   if (payload.taskId !== agentTaskId.value) return
   agentRunning.value = false
-  agentLogs.value += `\n[完成] 退出码: ${payload.exitCode ?? 'null'}`
-  scrollLogsToBottom()
+  agentTaskId.value = null
+
+  if (agentChatMode.value) {
+    // 对话模式：标记消息完成
+    const lastMsg = chatMessages.value[chatMessages.value.length - 1]
+    if (lastMsg?.role === 'assistant') {
+      lastMsg.streaming = false
+    }
+  } else {
+    // 单次任务模式
+    agentLogs.value += `\n[完成] 退出码: ${payload.exitCode ?? 'null'}`
+    scrollLogsToBottom()
+  }
 }
 
 const onAgentError = (_: unknown, payload: AgentErrorPayload) => {
   if (payload.taskId !== agentTaskId.value) return
   agentRunning.value = false
-  agentLogs.value += `\n[错误] ${payload.message}`
-  scrollLogsToBottom()
+  agentTaskId.value = null
+
+  if (agentChatMode.value) {
+    // 对话模式：追加错误到最后的 AI 消息
+    updateLastAIMessage((chatMessages.value[chatMessages.value.length - 1]?.content ?? '') + `\n[错误] ${payload.message}`)
+    const lastMsg = chatMessages.value[chatMessages.value.length - 1]
+    if (lastMsg?.role === 'assistant') {
+      lastMsg.streaming = false
+    }
+  } else {
+    // 单次任务模式
+    agentLogs.value += `\n[错误] ${payload.message}`
+    scrollLogsToBottom()
+  }
 }
 
 onMounted(() => {
@@ -829,54 +985,147 @@ onUnmounted(() => {
   <!-- Agent 任务执行对话框 -->
   <Dialog
     v-model:visible="agentDialogVisible"
-    :header="`执行 Agent 任务 — ${agentProject?.name ?? ''}`"
-    :style="{ width: '600px' }"
+    :header="agentChatMode ? `AI 对话 — ${agentProject?.name ?? ''}` : `执行 Agent 任务 — ${agentProject?.name ?? ''}`"
+    :style="{ width: agentChatMode ? '720px' : '600px' }"
     modal
     :closable="!agentRunning"
+    :pt="{
+      content: { class: 'p-0' }
+    }"
   >
-    <div class="flex flex-col gap-4 pt-1">
+    <div class="flex flex-col gap-4 pt-4 px-4">
       <!-- Agent 类型选择 -->
-      <div class="flex flex-col gap-1">
-        <label class="text-sm font-medium text-surface-700">Agent 类型</label>
-        <Select
-          v-model="agentType"
-          :options="AGENT_OPTIONS"
-          option-label="label"
-          option-value="value"
-          :disabled="agentRunning"
-        />
-      </div>
-
-      <!-- 任务描述 -->
-      <div class="flex flex-col gap-1">
-        <label class="text-sm font-medium text-surface-700">
-          任务描述 <span class="text-red-400">*</span>
-        </label>
-        <Textarea
-          v-model="agentTask"
-          placeholder="描述你希望 Agent 完成的任务..."
-          :rows="4"
-          auto-resize
-          :disabled="agentRunning"
-        />
-      </div>
-
-      <!-- 实时日志 -->
-      <div v-if="agentLogs || agentRunning" class="flex flex-col gap-1">
-        <label class="text-sm font-medium text-surface-700">执行日志</label>
-        <div
-          ref="agentLogEl"
-          class="bg-surface-900 text-green-400 font-mono text-xs rounded p-3 overflow-y-auto whitespace-pre-wrap"
-          style="max-height: 280px; min-height: 80px"
-        >
-          <span v-if="!agentLogs" class="text-surface-500">等待输出...</span>
-          <span v-else>{{ agentLogs }}</span>
+      <div class="flex items-center gap-4">
+        <div class="flex flex-col gap-1 flex-1">
+          <label class="text-sm font-medium text-surface-700">Agent 类型</label>
+          <Select
+            v-model="agentType"
+            :options="AGENT_OPTIONS"
+            option-label="label"
+            option-value="value"
+            :disabled="agentRunning"
+          />
         </div>
+
+        <!-- 详细信息开关 -->
+        <div class="flex items-center gap-2 mt-5">
+          <ToggleSwitch v-model="agentVerbose" :disabled="agentRunning" input-id="agent-verbose" />
+          <label for="agent-verbose" class="text-sm text-surface-700 cursor-pointer whitespace-nowrap">
+            详细信息
+          </label>
+        </div>
+
+        <!-- 会话模式开关 -->
+        <div class="flex items-center gap-2 mt-5">
+          <ToggleSwitch v-model="agentChatMode" :disabled="agentRunning" input-id="agent-chat-mode" />
+          <label for="agent-chat-mode" class="text-sm text-surface-700 cursor-pointer whitespace-nowrap">
+            会话模式
+          </label>
+        </div>
+      </div>
+
+      <!-- ========== 单次任务模式 ========== -->
+      <div v-if="!agentChatMode" class="flex flex-col gap-4">
+        <!-- 任务描述 -->
+        <div class="flex flex-col gap-1">
+          <label class="text-sm font-medium text-surface-700">
+            任务描述 <span class="text-red-400">*</span>
+          </label>
+          <Textarea
+            v-model="agentTask"
+            placeholder="描述你希望 Agent 完成的任务..."
+            :rows="4"
+            auto-resize
+            :disabled="agentRunning"
+          />
+        </div>
+
+        <!-- 实时日志 -->
+        <div v-if="agentLogs || agentRunning" class="flex flex-col gap-1">
+          <label class="text-sm font-medium text-surface-700">执行日志</label>
+          <div
+            ref="agentLogEl"
+            class="bg-surface-900 text-green-400 font-mono text-xs rounded p-3 overflow-y-auto whitespace-pre-wrap"
+            style="max-height: 280px; min-height: 80px"
+          >
+            <span v-if="!agentLogs" class="text-surface-500">等待输出...</span>
+            <span v-else>{{ agentLogs }}</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- ========== 会话模式 ========== -->
+      <div v-else class="flex flex-col gap-3 px-4 py-4">
+        <!-- 消息列表 -->
+        <div
+          ref="chatMessagesEl"
+          class="bg-surface-50 rounded-lg p-3 overflow-y-auto"
+          style="max-height: 360px; min-height: 200px"
+        >
+          <!-- 空状态 -->
+          <div v-if="chatMessages.length === 0" class="flex flex-col items-center justify-center h-full text-surface-400 py-8">
+            <i class="pi pi-comments text-4xl mb-2" />
+            <p class="text-sm">开始对话吧！</p>
+          </div>
+
+          <!-- 消息列表 -->
+          <div v-else class="flex flex-col gap-3">
+            <div
+              v-for="msg in chatMessages"
+              :key="msg.id"
+              class="flex"
+              :class="msg.role === 'user' ? 'justify-end' : 'justify-start'"
+            >
+              <!-- 用户消息 -->
+              <div
+                v-if="msg.role === 'user'"
+                class="bg-primary text-white rounded-lg px-3 py-2 max-w-[80%]"
+              >
+                <p class="text-sm whitespace-pre-wrap">{{ msg.content }}</p>
+              </div>
+
+              <!-- AI 消息 -->
+              <div
+                v-else
+                class="bg-white border border-surface-200 rounded-lg px-3 py-2 max-w-[80%]"
+              >
+                <div class="flex items-center gap-2 mb-1">
+                  <i class="pi pi-android text-surface-500 text-xs" />
+                  <span class="text-xs text-surface-500">AI</span>
+                  <span v-if="msg.streaming" class="text-xs text-primary">
+                    <i class="pi pi-spin pi-spinner" />
+                  </span>
+                </div>
+                <p class="text-sm whitespace-pre-wrap text-surface-700">{{ msg.content || (msg.streaming ? '思考中...' : '') }}</p>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- 输入框 -->
+        <div class="flex gap-2 w-full items-end">
+          <Textarea
+            v-model="chatInput"
+            placeholder="输入你的问题..."
+            :rows="3"
+            :disabled="agentRunning"
+            class="flex-1"
+            @keydown.enter.ctrl="handleChatSend"
+          />
+          <Button
+            icon="pi pi-send"
+            severity="primary"
+            :disabled="!chatInput.trim() || agentRunning"
+            :loading="agentRunning"
+            @click="handleChatSend"
+          />
+        </div>
+        <p class="text-xs text-surface-400 -mt-2">Ctrl + Enter 发送</p>
       </div>
     </div>
 
     <template #footer>
-      <div class="flex gap-2 justify-between w-full">
+      <div class="flex gap-2 justify-between w-full px-4 pb-4">
         <!-- 左：中断按钮（执行中才显示） -->
         <Button
           v-if="agentRunning"
@@ -890,6 +1139,14 @@ onUnmounted(() => {
         <!-- 右：取消 / 执行 -->
         <div class="flex gap-2">
           <Button
+            v-if="agentChatMode && !agentRunning"
+            label="清空会话"
+            severity="secondary"
+            text
+            icon="pi pi-trash"
+            @click="clearChat"
+          />
+          <Button
             label="关闭"
             severity="secondary"
             text
@@ -897,6 +1154,7 @@ onUnmounted(() => {
             @click="agentDialogVisible = false"
           />
           <Button
+            v-if="!agentChatMode"
             label="执行"
             icon="pi pi-play"
             :disabled="!agentTask.trim() || agentRunning"

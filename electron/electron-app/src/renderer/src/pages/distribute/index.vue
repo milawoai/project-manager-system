@@ -428,7 +428,7 @@ const statusLabel = () => {
         <h2 class="text-xl font-semibold m-0">{{ t('distribute.title') }}</h2>
         <Tag :severity="statusColor()" :value="statusLabel()" />
         <span v-if="isConnected() && connectionStatus.machineId" class="text-sm text-surface-500">
-          ID: {{ connectionStatus.machineId?.substring(0, 8) }}...
+          ID: {{ String(connectionStatus.machineId).substring(0, 8) }}...
         </span>
       </div>
       <div class="flex gap-2 items-center">
